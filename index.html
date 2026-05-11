@@ -22,7 +22,7 @@
             color: var(--text-light); 
             overflow: hidden; -webkit-user-select: none; user-select: none;
             width: 100vw; height: 100vh;
-            touch-action: none; /* Prevents default browser gestures during combat */
+            touch-action: none;
         }
 
         .global-controls {
@@ -86,19 +86,19 @@
         }
         
         .char-card img { width: 85%; height: 75%; object-fit: contain; }
-        .char-card.selected-p1 { border: 4px solid var(--p1-color); background: rgba(255,46,99,0.2); }
-        .char-card.selected-p2 { border: 4px solid var(--p2-color); background: rgba(8,217,214,0.2); }
+        .char-card.selected-p1 { border: 4px solid var(--p1-color); background: rgba(255,46,99,0.2); box-shadow: 0 0 20px var(--p1-color); }
+        .char-card.selected-p2 { border: 4px solid var(--p2-color); background: rgba(8,217,214,0.2); box-shadow: 0 0 20px var(--p2-color); }
 
         #game-screen { display: none; flex-direction: row; background: transparent; overflow: hidden; }
         .player-side { 
             flex: 1; display: flex; flex-direction: column; position: relative; 
-            height: 100vh; transition: background 0.3s; border-right: 1px solid rgba(255,255,255,0.1);
+            height: 100vh; transition: background 0.3s;
             justify-content: space-between; padding-bottom: 20px;
         }
         
         .health-bar-container { 
             width: 85%; height: 25px; background: #111; border-radius: 6px; margin: 80px auto 5px auto;
-            overflow: hidden; border: 2px solid #333; z-index: 20; flex-shrink: 0;
+            overflow: hidden; border: 2px solid #333; z-index: 200; flex-shrink: 0;
         }
         
         .health-fill { 
@@ -111,17 +111,18 @@
         .avatar-wrapper {
             flex-grow: 1; width: 100%; position: relative; z-index: 100;
             display: flex; align-items: center; justify-content: center;
-            pointer-events: none; /* Let touches pass through to quiz below if needed */
+            pointer-events: none;
         }
 
         .avatar-display { 
-            width: 80%; height: 80%; background-size: contain; background-repeat: no-repeat; 
+            width: 500px; height: 500px; background-size: contain; background-repeat: no-repeat; 
             background-position: center bottom; animation: rocking 3s ease-in-out infinite;
+            transition: transform 0.1s linear;
         }
 
         @keyframes rocking { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-10px) rotate(1deg); } }
         .shiver { animation: shiver-effect 0.1s linear infinite !important; }
-        @keyframes shiver-effect { 0% { transform: translate(-4px, -2px); } 50% { transform: translate(4px, 2px); } }
+        @keyframes shiver-effect { 0% { transform: translate(-8px, -4px); } 50% { transform: translate(8px, 4px); } }
 
         .quiz-container { 
             padding: 10px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; 
@@ -326,6 +327,9 @@
             document.getElementById('avatar-0').style.backgroundImage = `url(${playerSelection[0]}.png)`;
             document.getElementById('avatar-1').style.backgroundImage = `url(${playerSelection[1]}.png)`;
             
+            applyMirroring(0, document.getElementById('avatar-0'));
+            applyMirroring(1, document.getElementById('avatar-1'));
+
             updateHPDisplay(0); updateHPDisplay(1);
             loadQuestion(0); loadQuestion(1);
 
@@ -334,6 +338,14 @@
                 document.getElementById('quiz-cont-0').classList.remove('waiting'); 
                 document.getElementById('quiz-cont-1').classList.remove('waiting'); 
             }
+        }
+
+        function applyMirroring(pIdx, el) {
+            const charNum = playerSelection[pIdx];
+            const isDefaultRight = charNum <= 5;
+            const scale = (pIdx === 0) ? (isDefaultRight ? 1 : -1) : (isDefaultRight ? -1 : 1);
+            el.dataset.mirror = scale;
+            el.style.transform = `scaleX(${scale})`;
         }
 
         function loadQuestion(pIdx) {
@@ -360,13 +372,12 @@
             if (gameMode === 'turn' && pIdx !== currentTurn) return;
 
             const opponentIdx = pIdx === 0 ? 1 : 0;
-            const damage = 20;
 
             if (selected.toLowerCase() === correct.toLowerCase()) {
                 document.getElementById(`sfx-p${pIdx+1}-attack`).play();
                 animateAttack(pIdx);
-                hps[opponentIdx] = Math.max(0, hps[opponentIdx] - damage);
-                triggerDamageFeedback(opponentIdx);
+                hps[opponentIdx] = Math.max(0, hps[opponentIdx] - 20);
+                setTimeout(() => triggerDamageFeedback(opponentIdx), 400);
             } else {
                 document.getElementById(`sfx-p${pIdx+1}-lose`).play();
                 hps[pIdx] = Math.max(0, hps[pIdx] - 5);
@@ -383,17 +394,37 @@
         }
 
         function animateAttack(pIdx) {
-            const wrapper = document.getElementById(`wrapper-${pIdx}`);
-            const dist = pIdx === 0 ? 200 : -200;
-            wrapper.style.transition = "transform 0.2s cubic-bezier(0.1, 0.7, 1.0, 0.1)";
-            wrapper.style.transform = `translateX(${dist}px) scale(1.1)`;
-            setTimeout(() => { wrapper.style.transform = "translateX(0) scale(1)"; }, 200);
+            const avatar = document.getElementById(`avatar-${pIdx}`);
+            const charNum = playerSelection[pIdx];
+            const mirror = avatar.dataset.mirror;
+            
+            // Switch to GIF
+            avatar.style.backgroundImage = `url(${charNum}.gif?t=${Date.now()})`;
+            
+            // Full screen dash distance calculation
+            const dashDistance = pIdx === 0 ? 600 : -600;
+            
+            avatar.style.transition = "transform 0.4s cubic-bezier(0.1, 0.7, 1.0, 0.1)";
+            avatar.style.transform = `translateX(${dashDistance}px) scaleX(${mirror}) scale(1.2)`;
+            
+            setTimeout(() => {
+                avatar.style.transition = "transform 0.3s ease-in";
+                avatar.style.transform = `translateX(0) scaleX(${mirror})`;
+                setTimeout(() => {
+                    avatar.style.backgroundImage = `url(${charNum}.png)`;
+                }, 300);
+            }, 500);
         }
 
         function triggerDamageFeedback(pIdx) {
             const side = document.getElementById(`side-${pIdx}`);
+            const avatar = document.getElementById(`avatar-${pIdx}`);
             side.classList.add('damage-flash-screen');
-            setTimeout(() => side.classList.remove('damage-flash-screen'), 300);
+            avatar.classList.add('shiver');
+            setTimeout(() => {
+                side.classList.remove('damage-flash-screen');
+                avatar.classList.remove('shiver');
+            }, 600);
         }
 
         function updateHPDisplay(pIdx) {
@@ -407,7 +438,7 @@
 
         function endGame(winner) {
             isGameOver = true;
-            document.getElementById('winner-announcement').innerText = winner + " WINS!";
+            document.getElementById('winner-announcement').innerText = winner + " VICTORIOUS!";
             document.getElementById('game-screen').style.display = 'none';
             document.getElementById('result-screen').style.display = 'flex';
         }
@@ -418,7 +449,7 @@
         }
 
         function goBackToStart() {
-            location.reload(); // Simplest way to reset all states
+            location.reload();
         }
 
         function toggleMusic() {
@@ -434,8 +465,7 @@
             else document.exitFullscreen();
         }
 
-        // Settings Logic
-        function openSettings() { document.getElementById('settings-modal').style.display = 'block'; }
+        function openSettings() { renderSentenceBank(); document.getElementById('settings-modal').style.display = 'block'; }
         function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
         
         function renderSentenceBank() {
